@@ -71,12 +71,12 @@ async def search_player(ctx, bnet_name, bnet_tag_numbers=None):
     if json['competitive'] != None and json['competitive']['pc'] != None:
         if json['competitive']['pc']['tank'] != None:
             tank_embed = discord.Embed(
-                color=16750899, 
-                title="Tank", 
+                color=225, 
+                title="Tank 🛡️", 
                 thumbnail=json['competitive']['pc']['tank']['rank_icon'],
                 fields=[
                     discord.EmbedField(
-                        name="Tank",
+                        name="__Rank__",
                         value= json['competitive']['pc']['tank']['division'].upper() + " " + str(json['competitive']['pc']['tank']['tier']),
                     )
                 ]
@@ -85,12 +85,12 @@ async def search_player(ctx, bnet_name, bnet_tag_numbers=None):
         
         if json['competitive']['pc']['damage'] != None:
             damage_embed = discord.Embed(
-                color=16750899, 
-                title="Damage", 
+                color=16711680, 
+                title="Damage 🗡️", 
                 thumbnail=json['competitive']['pc']['damage']['rank_icon'],
                 fields=[
                     discord.EmbedField(
-                        name="Damage",
+                        name="__Rank__",
                         value= json['competitive']['pc']['damage']['division'].upper() + " " + str(json['competitive']['pc']['damage']['tier']),
                     )
                 ]
@@ -100,11 +100,11 @@ async def search_player(ctx, bnet_name, bnet_tag_numbers=None):
         if json['competitive']['pc']['support'] != None:
             support_embed = discord.Embed(
                 color=16750899, 
-                title="Support", 
+                title="Support 💉", 
                 thumbnail=json['competitive']['pc']['support']['rank_icon'],
                 fields=[
                     discord.EmbedField(
-                        name="Damage",
+                        name="__Rank__",
                         value= json['competitive']['pc']['support']['division'].upper() + " " + str(json['competitive']['pc']['support']['tier']),
                     )
                 ]
