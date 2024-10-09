@@ -29,11 +29,11 @@ async def search_player(ctx, bnet_name, bnet_tag_numbers=None):
         try:
             response = requests.get(url, timeout=10)
         except:
-            await ctx.respond("Error.")
+            await ctx.send_followup("Error.")
             return
         json = response.json()
         if json['total'] == 0:
-            await ctx.respond("Error: Player not found")
+            await ctx.send_followup("Error: Player not found")
             return
         player_id = json['results'][0]['player_id']
     
@@ -42,11 +42,11 @@ async def search_player(ctx, bnet_name, bnet_tag_numbers=None):
     try:
         response = requests.get(url, timeout=10)
     except:
-        await ctx.respond("Error.")
+        await ctx.send_followup("Error. Make sure player's profile is set to ``public``")
         return
     json = response.json()
     if json.get('error', None) != None:
-        await ctx.respond("Error: " + json['error'])
+        await ctx.send_followup("Error: " + json['error'])
         return
 
     print(str(json))
@@ -71,7 +71,7 @@ async def search_player(ctx, bnet_name, bnet_tag_numbers=None):
     if json['competitive'] != None and json['competitive']['pc'] != None:
         if json['competitive']['pc']['tank'] != None:
             tank_embed = discord.Embed(
-                color=225, 
+                color=10066431, 
                 title="Tank 🛡️", 
                 thumbnail=json['competitive']['pc']['tank']['rank_icon'],
                 fields=[
@@ -85,7 +85,7 @@ async def search_player(ctx, bnet_name, bnet_tag_numbers=None):
         
         if json['competitive']['pc']['damage'] != None:
             damage_embed = discord.Embed(
-                color=16711680, 
+                color=16744576, 
                 title="Damage 🗡️", 
                 thumbnail=json['competitive']['pc']['damage']['rank_icon'],
                 fields=[
@@ -99,7 +99,7 @@ async def search_player(ctx, bnet_name, bnet_tag_numbers=None):
         
         if json['competitive']['pc']['support'] != None:
             support_embed = discord.Embed(
-                color=16750899, 
+                color=16777088, 
                 title="Support 💉", 
                 thumbnail=json['competitive']['pc']['support']['rank_icon'],
                 fields=[
