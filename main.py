@@ -64,7 +64,7 @@ async def search_player(ctx, bnet_name, bnet_tag_numbers=None):
                 value=json['endorsement']['level']
             )
         ],
-        footer=discord.EmbedFooter(f"Last updated: {datetime.datetime.fromtimestamp(json['last_updated_at']).isoformat(sep=" ")}")
+        footer=discord.EmbedFooter(f"Last updated: {datetime.datetime.fromtimestamp(json['last_updated_at']).isoformat(sep=' ')}")
     )
     embeds.append(user_embed)
 
