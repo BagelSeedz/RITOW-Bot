@@ -13,11 +13,11 @@ async def cmd(ctx, bnet_name, bnet_tag_numbers=None):
         try:
             response = requests.get(url, timeout=10)
         except:
-            await ctx.send_followup("Error.")
+            await ctx.send_followup("Error.", ephemeral=True)
             return
         json = response.json()
         if json['total'] == 0:
-            await ctx.send_followup("Error: Player not found")
+            await ctx.send_followup("Error: Player not found", ephemeral=True)
             return
         player_id = json['results'][0]['player_id']
     
@@ -26,11 +26,11 @@ async def cmd(ctx, bnet_name, bnet_tag_numbers=None):
     try:
         response = requests.get(url, timeout=10)
     except:
-        await ctx.send_followup("Error. Make sure player's profile is set to ``public``")
+        await ctx.send_followup("Error. Make sure player's profile is set to ``public``", ephemeral=True)
         return
     json = response.json()
     if json.get('error', None) != None:
-        await ctx.send_followup("Error: " + json['error'])
+        await ctx.send_followup("Error: " + json['error'], ephemeral=True)
         return
 
     # print(str(json))
