@@ -187,7 +187,7 @@ async def delete_profile(ctx, mention):
 @option("mention", description="@ a teammate who needs to be subbed.", required=True)
 @option("when", description="When do you need a sub? (Day and time)", required=False)
 async def sub(ctx, mention, when="Now!"):
-    await commands.sub.run(ctx, mention, when, User, Team, bot)
+    await commands.sub.run(ctx, mention, when, User, Team, bot, os.getenv("SUB_ROLE"))
     
 @bot.slash_command(description="Create a team in the database")
 @option("team_mention", description="@ a team to add to the database", required=True)

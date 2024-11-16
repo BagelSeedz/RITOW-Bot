@@ -16,7 +16,7 @@ def get_role_color(role):
         return 16777088
     return None
 
-async def run(ctx, mention,  when, User, Team, bot):
+async def run(ctx, mention,  when, User, Team, bot, SUB_ROLE_ENV):
     guild = bot.get_guild(ctx.guild.id)
     if not guild:
         await ctx.respond("No access :(")
@@ -53,7 +53,7 @@ async def run(ctx, mention,  when, User, Team, bot):
         timeout=None
     )
     sub_message = await sub_channel.send(embed=embed, view=view)
-    await sub_channel.send(f"<@&{os.getenv("SUB_ROLE")}>")
+    await sub_channel.send(f"<@&{os.getenv(SUB_ROLE_ENV)}>")
     await ctx.respond("Created sub request.", ephemeral=True)
 
     def __on_sub(interaction):
