@@ -4,9 +4,13 @@ import os
 from dotenv import load_dotenv
 from flask import Flask
 from flask_sqlalchemy import SQLAlchemy
+import asyncio
 
 import commands.create_profile
+import commands.create_team
+import commands.join_team
 import commands.search_player
+import commands.sub
 
 # env
 load_dotenv()
@@ -54,7 +58,15 @@ class User(db.Model):
         self.teamID = teamID
 
     def __str__(self):
-        return f"ID: {self.discordID}\nName: {self.name}\nTeam: {self.teamID}\nRole: {self.role}\nSub-role: {self.sub_role}\nHeroes: {self.heroes}"
+        team_name = "No team"
+        if self.teamID:
+            team_name = Team.query.filter_by(teamID=self.teamID).first().name
+        output = f"ID: {self.discordID}\nName: {self.name}\nTeam: {team_name}\nRole: {self.role}\nSub-role: {self.sub_role}\n"
+        hero_list = "Heroes: "
+        for hero in eval(self.heroes):
+            hero_list += hero.capitalize() + " "
+        output += hero_list
+        return output
 
 class Team(db.Model):
     _id = db.Column("id", db.Integer, primary_key=True)
@@ -96,7 +108,12 @@ class Team(db.Model):
         return True
     
     def __str__(self):
-        return f"ID: {self.teamID}\nName: {self.name}\n"
+        output = f"ID: {self.teamID}\nName: {self.name}\nCaptain: <@{self.captain}>\nScrim-Level: {str(self.scrim_level)}\n"
+        member_list = "Members: "
+        for member in eval(self.members):
+            member_list += f"<@{str(member)}> "
+        output += member_list
+        return output
 
 # Local Functions
 def is_manager(member):
@@ -120,12 +137,12 @@ def get_role_color(role):
 async def on_ready():
     print(f'We have logged in as {bot.user}')
 
-@bot.slash_command()
+@bot.slash_command(description="View the stats of a player")
 @option("bnet_tag_numbers", description="Enter Battle.net #numbers", required=False, default=None)
 async def search_player(ctx, bnet_name, bnet_tag_numbers=None):
     await commands.search_player.cmd(ctx, bnet_name, bnet_tag_numbers)
 
-@bot.slash_command()
+@bot.slash_command(description="Create a profile in the database")
 async def create_profile(ctx):
     user = User.query.filter_by(discordID=ctx.author.id).first()
     if not user:
@@ -136,7 +153,7 @@ async def create_profile(ctx):
     await commands.create_profile.run(ctx, bot, user, db)
     
 
-@bot.slash_command()
+@bot.slash_command(description="Show a user's profile")
 @option("mention", description="@ a member whose profile you want to see", required=False, default=None)
 async def show_profile(ctx, mention=None):
     member_id = ctx.author.id
@@ -150,7 +167,7 @@ async def show_profile(ctx, mention=None):
 
     await ctx.respond(str(user))
 
-@bot.slash_command()
+@bot.slash_command(description="Delete a user's profile")
 @option("mention", description="@ a member whose profile should get deleted.", required=True)
 async def delete_profile(ctx, mention):
     mention_id = id_from_mention(mention)
@@ -166,102 +183,24 @@ async def delete_profile(ctx, mention):
     else:
         await ctx.respond(f"Could not find profile for <@{mention_id}>.", ephemeral=True)
 
-@bot.slash_command()
-async def sub(ctx, mention):
-    guild = bot.get_guild(ctx.guild.id)
-    if not guild:
-        await ctx.respond("No access :(")
-        return
-
-    member_id = id_from_mention(mention)
-    member = guild.get_member(member_id)
-    user = User.query.filter_by(discordID=member_id).first()
-    if not member or not user:
-        await ctx.respond("Error: Could not find user in mention.")
-        return
+@bot.slash_command(description="Ask for a sub")
+@option("mention", description="@ a teammate who needs to be subbed.", required=True)
+@option("when", description="When do you need a sub? (Day and time)", required=False)
+async def sub(ctx, mention, when="Now!"):
+    await commands.sub.run(ctx, mention, when, User, Team, bot)
     
-    team = Team.query.filter_by(teamID=user.teamID).first()
-    if not team:
-        await ctx.respond("User is not part of a team!")
-
-    sub_channel = bot.get_channel(int(os.getenv("SUB_CHANNEL_ID")))
-    embed = discord.Embed(
-        color=get_role_color(user.role),
-        title="Substitution Requested❗",
-        description=f"{ctx.author.mention} has requested a sub for <@&{team.teamID}>",
-        fields=[
-            discord.EmbedField(name="Team", value=team.name),
-            discord.EmbedField(name="Scrim-Level", value=str(team.scrim_level), inline=True),
-            discord.EmbedField(name="Role", value=user.role),
-            discord.EmbedField(name="Sub-Role", value=user.sub_role, inline=True),
-            discord.EmbedField(name="Heroes", value=user.heroes)
-        ]
-    )
-    await sub_channel.send(embed=embed)
-
-    await ctx.respond("Created sub request.", ephemeral=True)
-    
-@bot.slash_command()
+@bot.slash_command(description="Create a team in the database")
+@option("team_mention", description="@ a team to add to the database", required=True)
+@option("scrim_level", description="ELO the team scrims (can be changed)", required=True)
 async def create_team(ctx, team_mention, scrim_level):
-    try:
-        scrim_level = float(scrim_level)
-    except ValueError:
-        await ctx.respond("Please us a valid scrim_level (number)")
-        return
+    await commands.create_team.run(ctx, team_mention, scrim_level, Team, User, db, bot)
 
-    guild = bot.get_guild(ctx.guild.id)
-    if not guild:
-        await ctx.respond("No access :(", ephemeral=True)
-        return
-    
-    role = guild.get_role(int(team_mention[3:].removesuffix(">")))
-    if not role:
-        await ctx.respond("No team role found.", ephemeral=True)
-        return
-    
-    team = Team(role.id, role.name, ctx.author.id, scrim_level)
-    db.session.add(team)
-    db.session.commit()
-
-    for member in role.members:
-        user = User.query.filter_by(discordID=member.id).first()
-        if user != None: # only add users that have registered their profile
-            user.set_team_id(team.teamID)
-            team.add_member(member.id)
-    
-    await ctx.respond("Succesfully created team: " + team.name)
-
-@bot.slash_command()
+@bot.slash_command(description="Join a team in the database")
+@option("team_mention", description="@ the team you want to join", required=True)
 async def join_team(ctx, team_mention):
-    guild = bot.get_guild(ctx.guild.id)
-    if not guild:
-        await ctx.respond("No access :(", ephemeral=True)
-        return
-    
-    role = guild.get_role(int(team_mention[3:].removesuffix(">")))
-    if not role:
-        await ctx.respond("No team role found.", ephemeral=True)
-        return
-    
-    if role not in ctx.author.roles:
-        await ctx.respond("You must have the team's role to use this command.", ephemeral=True)
-        return
-    
-    user = User.query.filter_by(discordID=ctx.author.id).first()
-    if not user:
-        await ctx.respond("You must be registered to join a team. Use ``/create_profile`` to register.")
-        return
-    
-    team = Team.query.filter_by(teamID=role.id).first()
-    if not team:
-        await ctx.respond("Team is not registered. Ask the captain to use ``/create_team``")
-        return
+    await commands.join_team.run(ctx, team_mention, User, Team, bot)
 
-    user.set_team_id(team.teamID)
-    team.add_member(user.discordID)
-    await ctx.respond(f"Successfully added you to the ``{team.name}`` team.")
-
-@bot.slash_command()
+@bot.slash_command(description="Leave a team")
 @option("mention", description="@ a member who should be removed from their team", required=True)
 async def leave_team(ctx, mention):
     mention_id = id_from_mention(mention)
@@ -282,7 +221,8 @@ async def leave_team(ctx, mention):
     user.set_team_id(None)
     await ctx.respond("Successfully removed the member from the team.")
 
-@bot.slash_command()
+@bot.slash_command(description="View team details")
+@option("team_mention", description="@ the team you want to see", required=True)
 async def show_team(ctx, team_mention):
     guild = bot.get_guild(ctx.guild.id)
     if not guild:
@@ -295,9 +235,10 @@ async def show_team(ctx, team_mention):
         await ctx.respond("Team not found.", ephemeral=True)
         return
     
-    await ctx.respond(team.name + ": " + team.members)
+    await ctx.respond(str(team))
 
-@bot.slash_command()
+@bot.slash_command(description="Update your team's scrim level")
+@option("scrim_level", description="ELO the team scrims (can be changed)", required=True)
 async def update_scrim_level(ctx, scrim_level):
     try:
         scrim_level = float(scrim_level)
@@ -320,6 +261,44 @@ async def update_scrim_level(ctx, scrim_level):
     
     team.set_scrim_level(scrim_level)
     await ctx.respond("Successfully set scrim level to " + str(scrim_level))
+
+@bot.slash_command(description="Set the captain of a team")
+@option("captain_mention", description="@ the member who should be promoted to captain", required=True)
+async def set_team_captain(ctx, team_mention, captain_mention):
+    if not is_manager(ctx.author):
+        await ctx.respond("Only the manager can use this command.", ephemeral=True)
+        return
+    
+    team_id = int(team_mention[3:].removesuffix(">"))
+    team = Team.query.filter_by(teamID=team_id).first()
+    if not team:
+        await ctx.respond("Team not found.", ephemeral=True)
+        return
+    
+    captain_id = id_from_mention(captain_mention)
+    if team.members.find(str(captain_id)) == -1:
+        await ctx.respond("Member must be part of the team mentioned to be considered for captain.", ephemeral=True)
+        return
+
+    team.set_captain(captain_id)
+    await ctx.respond(f"Successfully made <@{captain_id}> the captain of <@&{team_id}>!")
+
+@bot.slash_command(description="Delete a team in the database")
+@option(name="team_mention", description="@ the team that should be deleted in the database", required=True)
+async def delete_team(ctx, team_mention):
+    if not is_manager(ctx.author):
+        await ctx.respond("Only the manager can use this command.", ephemeral=True)
+        return
+    
+    team_id = int(team_mention[3:].removesuffix(">"))
+    team = Team.query.filter_by(teamID=team_id)
+    if team.count() == 0:
+        await ctx.respond("Team not found.", ephemeral=True)
+        return
+    
+    team.delete()
+    db.commit()
+    await ctx.respond("Successfully deleted team.")
 
 def main():
     with app.app_context():
