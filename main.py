@@ -4,7 +4,6 @@ import os
 from dotenv import load_dotenv
 from flask import Flask
 from flask_sqlalchemy import SQLAlchemy
-import asyncio
 
 import commands.create_profile
 import commands.create_team
@@ -108,12 +107,26 @@ class Team(db.Model):
         return True
     
     def __str__(self):
-        output = f"ID: {self.teamID}\nName: {self.name}\nCaptain: <@{self.captain}>\nScrim-Level: {str(self.scrim_level)}\n"
+        output = f"Team: <@&{self.teamID}>\nCaptain: <@{self.captain}>\nScrim-Level: {str(self.scrim_level)}\n"
         member_list = "Members: "
         for member in eval(self.members):
             member_list += f"<@{str(member)}> "
         output += member_list
         return output
+
+class Sub(db.Model):
+    _id = db.Column("id", db.Integer, primary_key=True)
+    userID = db.Column("userID", db.Integer)
+    teamID = db.Column("teamID", db.Integer)
+    when = db.Column("when", db.String(40))
+
+    def __init__(self, userID, teamID, when):
+        self.userID = userID
+        self.teamID = teamID
+        self.when = when
+    
+    def __str__(self):
+        return f"User: <@{self.userID}>, Team: <@&{self.teamID}>, When: {self.when}"
 
 # Local Functions
 def is_manager(member):
@@ -187,7 +200,7 @@ async def delete_profile(ctx, mention):
 @option("mention", description="@ a teammate who needs to be subbed.", required=True)
 @option("when", description="When do you need a sub? (Day and time)", required=False)
 async def sub(ctx, mention, when="Now!"):
-    await commands.sub.run(ctx, mention, when, User, Team, bot, os.getenv("SUB_ROLE"))
+    await commands.sub.run(ctx, mention, when, User, Team, Sub, db, bot, os.getenv("SUB_ROLE"))
     
 @bot.slash_command(description="Create a team in the database")
 @option("team_mention", description="@ a team to add to the database", required=True)
@@ -299,6 +312,21 @@ async def delete_team(ctx, team_mention):
     team.delete()
     db.commit()
     await ctx.respond("Successfully deleted team.")
+
+@bot.slash_command(description="Show all subs scheduled")
+async def show_subs(ctx):
+    desc = "If you are a sub, use /drag to join the team's vc!\n\n"
+    subs = Sub.query.all()
+    for sub in subs:
+        desc += str(sub) + "\n"
+
+    embed = discord.Embed(
+        color=1301711,
+        title="Subs",
+        description=desc,
+    )
+
+    await ctx.respond(embed=embed, delete_after=30)
 
 def main():
     with app.app_context():

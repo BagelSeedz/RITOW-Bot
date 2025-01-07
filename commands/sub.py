@@ -16,7 +16,7 @@ def get_role_color(role):
         return 16777088
     return None
 
-async def run(ctx, mention,  when, User, Team, bot, SUB_ROLE_ENV):
+async def run(ctx, mention,  when, User, Team, Sub, db, bot, SUB_ROLE_ENV):
     guild = bot.get_guild(ctx.guild.id)
     if not guild:
         await ctx.respond("No access :(")
@@ -76,6 +76,10 @@ async def run(ctx, mention,  when, User, Team, bot, SUB_ROLE_ENV):
                 _, reaction_user = await bot.wait_for("reaction_add", check=__react_check, timeout=43200)
             except asyncio.TimeoutError:
                 break
+            
+            sub = Sub(reaction_user.id, team.teamID, when)
+            db.session.add(sub)
+            db.session.commit()
 
             await sub_channel.send(f"{reaction_user.mention} You will be subbing for {user.name}.\nJoin a vc at ``{when}`` and ask to be dragged.")
             await sub_message.edit(content="Sub found.", embed=embed, view=None)
