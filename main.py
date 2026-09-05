@@ -4,7 +4,6 @@ import os
 from dotenv import load_dotenv
 from flask import Flask
 from flask_sqlalchemy import SQLAlchemy
-import asyncio
 
 import commands.create_profile
 import commands.create_team
@@ -108,12 +107,26 @@ class Team(db.Model):
         return True
     
     def __str__(self):
-        output = f"ID: {self.teamID}\nName: {self.name}\nCaptain: <@{self.captain}>\nScrim-Level: {str(self.scrim_level)}\n"
+        output = f"Team: <@&{self.teamID}>\nCaptain: <@{self.captain}>\nScrim-Level: {str(self.scrim_level)}\n"
         member_list = "Members: "
         for member in eval(self.members):
             member_list += f"<@{str(member)}> "
         output += member_list
         return output
+
+class Sub(db.Model):
+    _id = db.Column("id", db.Integer, primary_key=True)
+    userID = db.Column("userID", db.Integer)
+    teamID = db.Column("teamID", db.Integer)
+    when = db.Column("when", db.String(40))
+
+    def __init__(self, userID, teamID, when):
+        self.userID = userID
+        self.teamID = teamID
+        self.when = when
+    
+    def __str__(self):
+        return f"User: <@{self.userID}>, Team: <@&{self.teamID}>, When: {self.when}"
 
 # Local Functions
 def is_manager(member):
@@ -141,6 +154,179 @@ async def on_ready():
 @option("bnet_tag_numbers", description="Enter Battle.net #numbers", required=False, default=None)
 async def search_player(ctx, bnet_name, bnet_tag_numbers=None):
     await commands.search_player.cmd(ctx, bnet_name, bnet_tag_numbers)
+
+@bot.slash_command(description="Create a profile in the database")
+async def create_profile(ctx):
+    user = User.query.filter_by(discordID=ctx.author.id).first()
+    if not user:
+        user = User(ctx.author.id, ctx.author.name)
+        db.session.add(user)
+        db.session.commit()
+    
+    await commands.create_profile.run(ctx, bot, user, db)
+    
+
+@bot.slash_command(description="Show a user's profile")
+@option("mention", description="@ a member whose profile you want to see", required=False, default=None)
+async def show_profile(ctx, mention=None):
+    member_id = ctx.author.id
+    if mention != None:
+        member_id = id_from_mention(mention)
+
+    user = User.query.filter_by(discordID=member_id).first()
+    if not user:
+        await ctx.respond("Profile does not exist.", ephemeral=True)
+        return
+
+    await ctx.respond(str(user))
+
+@bot.slash_command(description="Delete a user's profile")
+@option("mention", description="@ a member whose profile should get deleted.", required=True)
+async def delete_profile(ctx, mention):
+    mention_id = id_from_mention(mention)
+    if mention_id != ctx.author.id and not is_manager(ctx.author):
+        await ctx.respond("This command can only be used by the manager.", ephemeral=True)
+        return
+    
+    user = User.query.filter_by(discordID=mention_id)
+    if user.count():
+        user.delete()
+        db.session.commit()
+        await ctx.respond(f"Successfully deleted profile for <@{mention_id}>.")
+    else:
+        await ctx.respond(f"Could not find profile for <@{mention_id}>.", ephemeral=True)
+
+@bot.slash_command(description="Ask for a sub")
+@option("mention", description="@ a teammate who needs to be subbed.", required=True)
+@option("when", description="When do you need a sub? (Day and time)", required=False)
+async def sub(ctx, mention, when="Now!"):
+    await commands.sub.run(ctx, mention, when, User, Team, Sub, db, bot, os.getenv("SUB_ROLE"))
+    
+@bot.slash_command(description="Create a team in the database")
+@option("team_mention", description="@ a team to add to the database", required=True)
+@option("scrim_level", description="ELO the team scrims (can be changed)", required=True)
+async def create_team(ctx, team_mention, scrim_level):
+    await commands.create_team.run(ctx, team_mention, scrim_level, Team, User, db, bot)
+
+@bot.slash_command(description="Join a team in the database")
+@option("team_mention", description="@ the team you want to join", required=True)
+async def join_team(ctx, team_mention):
+    await commands.join_team.run(ctx, team_mention, User, Team, bot)
+
+@bot.slash_command(description="Leave a team")
+@option("mention", description="@ a member who should be removed from their team", required=True)
+async def leave_team(ctx, mention):
+    mention_id = id_from_mention(mention)
+    if mention_id != ctx.author.id and not is_manager(ctx.author):
+        await ctx.respond("This command can only be used by the manager.", ephemeral=True)
+        return
+
+    user = User.query.filter_by(discordID=mention_id).first()
+    if not user:
+        await ctx.respond("The member mentioned is not registered.", ephemeral=True)
+        return
+    if user.teamID == None:
+        await ctx.respond("The member mentioned is not part of a team.", ephemeral=True)
+        return
+    
+    team = Team.query.filter_by(teamID=user.teamID).first()
+    team.remove_member(user.discordID)
+    user.set_team_id(None)
+    await ctx.respond("Successfully removed the member from the team.")
+
+@bot.slash_command(description="View team details")
+@option("team_mention", description="@ the team you want to see", required=True)
+async def show_team(ctx, team_mention):
+    guild = bot.get_guild(ctx.guild.id)
+    if not guild:
+        await ctx.respond("No access :(", ephemeral=True)
+        return
+    
+    team_id = int(team_mention[3:].removesuffix(">"))
+    team = Team.query.filter_by(teamID=team_id).first()
+    if not team:
+        await ctx.respond("Team not found.", ephemeral=True)
+        return
+    
+    await ctx.respond(str(team))
+
+@bot.slash_command(description="Update your team's scrim level")
+@option("scrim_level", description="ELO the team scrims (can be changed)", required=True)
+async def update_scrim_level(ctx, scrim_level):
+    try:
+        scrim_level = float(scrim_level)
+    except ValueError:
+        await ctx.respond("Please us a valid scrim_level (number)")
+        return
+    
+    user = User.query.filter_by(discordID=ctx.author.id).first()
+    if not user:
+        await ctx.respond("You must be registered to use this command.", ephemeral=True)
+        return
+    if user.teamID == None:
+        await ctx.respond("You must be on a team to use this command.", ephemeral=True)
+        return
+    
+    team = Team.query.filter_by(teamID=user.teamID).first()
+    if team.captain != user.discordID:
+        await ctx.respond("You must be the captain of your team to use this command.", ephemeral=True)
+        return
+    
+    team.set_scrim_level(scrim_level)
+    await ctx.respond("Successfully set scrim level to " + str(scrim_level))
+
+@bot.slash_command(description="Set the captain of a team")
+@option("captain_mention", description="@ the member who should be promoted to captain", required=True)
+async def set_team_captain(ctx, team_mention, captain_mention):
+    if not is_manager(ctx.author):
+        await ctx.respond("Only the manager can use this command.", ephemeral=True)
+        return
+    
+    team_id = int(team_mention[3:].removesuffix(">"))
+    team = Team.query.filter_by(teamID=team_id).first()
+    if not team:
+        await ctx.respond("Team not found.", ephemeral=True)
+        return
+    
+    captain_id = id_from_mention(captain_mention)
+    if team.members.find(str(captain_id)) == -1:
+        await ctx.respond("Member must be part of the team mentioned to be considered for captain.", ephemeral=True)
+        return
+
+    team.set_captain(captain_id)
+    await ctx.respond(f"Successfully made <@{captain_id}> the captain of <@&{team_id}>!")
+
+@bot.slash_command(description="Delete a team in the database")
+@option(name="team_mention", description="@ the team that should be deleted in the database", required=True)
+async def delete_team(ctx, team_mention):
+    if not is_manager(ctx.author):
+        await ctx.respond("Only the manager can use this command.", ephemeral=True)
+        return
+    
+    team_id = int(team_mention[3:].removesuffix(">"))
+    team = Team.query.filter_by(teamID=team_id)
+    if team.count() == 0:
+        await ctx.respond("Team not found.", ephemeral=True)
+        return
+    
+    team.delete()
+    db.commit()
+    await ctx.respond("Successfully deleted team.")
+
+@bot.slash_command(description="Show all subs scheduled")
+async def show_subs(ctx):
+    desc = "If you are a sub, use /drag to join the team's vc!\n\n"
+    subs = Sub.query.all()
+    for sub in subs:
+        desc += str(sub) + "\n"
+
+    embed = discord.Embed(
+        color=1301711,
+        title="Subs",
+        description=desc,
+    )
+
+    await ctx.respond(embed=embed, delete_after=30)
 
 def main():
     with app.app_context():

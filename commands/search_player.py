@@ -95,4 +95,4 @@ async def cmd(ctx, bnet_name, bnet_tag_numbers=None):
             )
             embeds.append(support_embed)
 
-    await ctx.send_followup(embeds=embeds, ephemeral=False, delete_after=30)
+    await ctx.send_followup(embeds=embeds, ephemeral=False, delete_after=60)
