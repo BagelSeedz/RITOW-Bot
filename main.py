@@ -58,7 +58,7 @@ async def main():
 
     try:
         await bot.start(
-            os.environ["DISCORD_TOKEN"]
+            os.getenv("DISCORD_TOKEN")
         )
     finally:
         await web_runner.cleanup()
