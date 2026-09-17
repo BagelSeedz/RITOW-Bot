@@ -52,22 +52,15 @@ async def search_player(ctx, bnet_name, bnet_tag_numbers=None):
     await commands.search_player.cmd(ctx, bnet_name, bnet_tag_numbers)
 
 async def main():
-    print("c")
     await faceit.start()
-    print("d")
+
     web_runner = await start_web_server()
-    print("e")
     try:
-        print("f")
         await bot.start(
             os.getenv("DISCORD_TOKEN")
         )
     finally:
-        print("g")
         await web_runner.cleanup()
         await faceit.close()
 
-print("a")
-if __name__ == "main":
-    print("b")
-    asyncio.run(main())
+asyncio.run(main())
