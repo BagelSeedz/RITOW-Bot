@@ -1,42 +1,52 @@
 from aiohttp import web
 import os
+import discord
 
-async def handle_webhook(request):
-    payload = await request.json()
+class WebhookHandler():
+    bot: discord.Bot = None
 
-    print("FACEIT WEBHOOK:")
-    print(payload)
+    def __init__(self, bot):
+        self.bot = bot
 
-    return web.Response(status=200)
+    async def handle_webhook(self, request):
+        payload = await request.json()
+
+        # output_ch = self.bot.get_channel(874495269625036820)
+        # output_ch.send(embed=discord.Embed(
+
+        # ))
+        print(payload)
+
+        return web.Response(status=200)
 
 
-def create_web_app():
-    app = web.Application()
+    def create_web_app(self):
+        app = web.Application()
 
-    app.router.add_post(
-        "/faceit/webhook",
-        handle_webhook
-    )
+        app.router.add_post(
+            "/faceit/webhook",
+            self.handle_webhook
+        )
 
-    return app
+        return app
 
-async def start_web_server():
+    async def start_web_server(self):
 
-    app = create_web_app()
+        app = self.create_web_app()
 
-    runner = web.AppRunner(app)
-    await runner.setup()
+        runner = web.AppRunner(app)
+        await runner.setup()
 
-    port = int(os.environ.get("PORT", 8080))
+        port = int(os.environ.get("PORT", 8080))
 
-    site = web.TCPSite(
-        runner,
-        "0.0.0.0",
-        port
-    )
+        site = web.TCPSite(
+            runner,
+            "0.0.0.0",
+            port
+        )
 
-    await site.start()
+        await site.start()
 
-    print(f"Webhook server listening on port {port}")
+        print(f"Webhook server listening on port {port}")
 
-    return runner
+        return runner

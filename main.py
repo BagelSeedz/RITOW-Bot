@@ -3,7 +3,7 @@ from discord import option
 import os
 from dotenv import load_dotenv
 from faceit.client import FaceitClient
-from faceit.webhook import start_web_server
+from faceit.webhook import WebhookHandler
 import asyncio
 
 import commands.search_player
@@ -39,7 +39,7 @@ def get_role_color(role):
 
 @bot.event
 async def on_ready():
-    results = await faceit.search_player("kodos557")
+    results = await faceit.search_player("_Harlow_")
     for player in results["items"]:
         print(player["nickname"])
         print(player["player_id"])
@@ -54,7 +54,8 @@ async def search_player(ctx, bnet_name, bnet_tag_numbers=None):
 async def main():
     await faceit.start()
 
-    web_runner = await start_web_server()
+    web_handler = WebhookHandler(bot)
+    web_runner = await web_handler.start_web_server()
     try:
         await bot.start(
             os.getenv("DISCORD_TOKEN")
