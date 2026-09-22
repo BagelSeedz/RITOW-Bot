@@ -39,10 +39,10 @@ def get_role_color(role):
 
 @bot.event
 async def on_ready():
-    results = await faceit.search_player("_Harlow_")
-    for player in results["items"]:
-        print(player["nickname"])
-        print(player["player_id"])
+    # results = await faceit.search_player("_Harlow_")
+    # for player in results["items"]:
+    #     print(player["nickname"])
+    #     print(player["player_id"])
 
     print(f'We have logged in as {bot.user}')
 
@@ -54,7 +54,7 @@ async def search_player(ctx, bnet_name, bnet_tag_numbers=None):
 async def main():
     await faceit.start()
 
-    web_handler = WebhookHandler(bot)
+    web_handler = WebhookHandler(bot, faceit)
     web_runner = await web_handler.start_web_server()
     try:
         await bot.start(

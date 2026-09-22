@@ -1,21 +1,21 @@
 from aiohttp import web
 import os
 import discord
+from .embeder import Embeder
 
 class WebhookHandler():
     bot: discord.Bot = None
+    embeder: Embeder = None
 
-    def __init__(self, bot):
+    def __init__(self, bot, faceit):
         self.bot = bot
+        self.embeder = Embeder(bot, faceit)
+
 
     async def handle_webhook(self, request):
         payload = await request.json()
 
-        # output_ch = self.bot.get_channel(874495269625036820)
-        # output_ch.send(embed=discord.Embed(
-
-        # ))
-        print(payload)
+        self.embeder.handle_payload(payload)
 
         return web.Response(status=200)
 
