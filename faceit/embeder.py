@@ -1,5 +1,9 @@
 import discord
 from .client import FaceitClient
+import os
+from datetime import datetime
+
+FACEIT_OUTPUT_CHANNEL_ID = os.getenv("FACEIT_OUTPUT_CHANNEL_ID")
 
 class Embeder:
     bot: discord.Bot = None
@@ -9,7 +13,51 @@ class Embeder:
         self.bot = bot
         self.faceit = faceit
 
-    def handle_payload(self, payload: dict):
+    def __create_announcement_embed(self, payload, team1, team2, team1Score, team2Score):
+        team1Name = f"| {team1["team_stats"]["Team"]} |"
+        team2Name = f"| {team2["team_stats"]["Team"]} |"
+        score_str =  f"**{team1Score}** - {team2Score}" if team1Score > team2Score else f"{team1Score} - **{team2Score}**"
+        return discord.Embed(
+            author=discord.EmbedAuthor(payload["payload"]["entity"]["name"]),
+            title=f"{team1Name} | {score_str} | {team2Name}",
+            color=0xff6600,
+            footer=discord.EmbedFooter(datetime.today().isoformat())
+        )
+
+    def __create_round_embed(self, round, round_dict, team1Score, team2Score, payload):
+        team1 = round_dict["teams"][0]
+        team2 = round_dict["teams"][1]
+        team1Name = f"| {team1["team_stats"]["Team"]} |"
+        team2Name = f"| {team2["team_stats"]["Team"]} |"
+        team1Roster = [f"*{plr["nickname"]}*" for plr in team1["players"]]
+        team2Roster = [f"*{plr["nickname"]}*" for plr in team2["players"]]
+        team1Elims = [str(plr["player_stats"]["Eliminations"]) for plr in team1["players"]]
+        team2Elims = [str(plr["player_stats"]["Eliminations"]) for plr in team2["players"]]
+        team1Deaths = [str(plr["player_stats"]["Deaths"]) for plr in team1["players"]]
+        team2Deaths = [str(plr["player_stats"]["Deaths"]) for plr in team2["players"]]
+        winnerName = team1Name if team1Score > team2Score else team2Name
+
+        embed = discord.Embed(
+            # author=discord.EmbedAuthor(payload["payload"]["entity"]["name"]),
+            # title=f"{team1Name} | {score_str} | {team2Name}",
+            title=f"| Round {round} |",
+            description=f"**Winner :trophy::** {winnerName}\n" \
+                        f"**Mode:** {round["round_stats"]["OW2 Mode"]}\n" \
+                        f"**Score:** {round["round_stats"]["Score Summary"]}",
+            color=0xff6600,
+            fields=[
+                discord.EmbedField(name=team1Name, value="\n\n".join(team1Roster), inline=True),
+                discord.EmbedField(name="| Elims |", value="\n\n".join(team1Elims), inline=True),
+                discord.EmbedField(name="| Deaths |", value="\n\n".join(team1Deaths), inline=True),
+                discord.EmbedField(name=team2Name, value="\n\n".join(team2Roster), inline=True),
+                discord.EmbedField(name="| Elims |", value="\n\n".join(team2Elims), inline=True),
+                discord.EmbedField(name="| Deaths |", value="\n\n".join(team2Deaths), inline=True)
+            ]
+        )
+
+        return embed
+
+    async def handle_payload(self, payload: dict):
         if not "event" in payload.keys() or payload["event"] != "match_demo_ready":
             return
 
@@ -47,58 +95,6 @@ class Embeder:
         if team1Score < min_score and team2Score < min_score:
             return # Not done yet
 
-        team1Name = team1["team_stats"]["Team"]
-        team2Name = team2["team_stats"]["Team"]
-        team1Roster = [f"**{plr["nickname"]}**" for plr in team1["players"]]
-        team2Roster = [f"**{plr["nickname"]}**" for plr in team2["players"]]
-        team1Elims = [str(plr["player_stats"]["Eliminations"]) for plr in team1["players"]]
-        team2Elims = [str(plr["player_stats"]["Eliminations"]) for plr in team2["players"]]
-        team1Deaths = [str(plr["player_stats"]["Deaths"]) for plr in team1["players"]]
-        team2Deaths = [str(plr["player_stats"]["Deaths"]) for plr in team2["players"]]
-        score_str =  f"**{team1Score}** - {team2Score}" if team1Score > team2Score else f"{team1Score} - **{team2Score}**"
-        winnerName = team1Name if team1Score > team2Score else team2Name
-
-        embed = discord.Embed(
-            author=discord.EmbedAuthor(payload["payload"]["entity"]["name"]),
-            title=f"{team1Name} | {score_str} | {team2Name}",
-            color=0xff6600,
-            fields=[
-                discord.EmbedField(
-                    name="Round 1",
-                    value=f"Winner: {winnerName}\n" \
-                            f"Mode: {round["round_stats"]["OW2 Mode"]}\n" \
-                            f"Score: {round["round_stats"]["Score Summary"]}",
-                    inline=True
-                ),
-                discord.EmbedField(
-                    name=team1Name,
-                    value="\n\n".join(team1Roster),
-                    inline=True
-                ),
-                discord.EmbedField(
-                    name="Elims",
-                    value="\n\n".join(team1Elims),
-                    inline=True
-                ),
-                discord.EmbedField(
-                    name="Deaths",
-                    value="\n\n".join(team1Deaths),
-                    inline=True
-                ),
-                discord.EmbedField(
-                    name=team2Name,
-                    value="\n\n".join(team2Roster),
-                    inline=True
-                ),
-                discord.EmbedField(
-                    name="Elims",
-                    value="\n\n".join(team2Elims),
-                    inline=True
-                ),
-                discord.EmbedField(
-                    name="Deaths",
-                    value="\n\n".join(team2Deaths),
-                    inline=True
-                )
-            ]
-        )
+        channel = self.bot.get_channel(FACEIT_OUTPUT_CHANNEL_ID)
+        embed = self.__create_announcement_embed(payload, team1, team2, team1Score, team2Score)
+        await channel.send(embed=embed)

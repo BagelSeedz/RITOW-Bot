@@ -15,7 +15,7 @@ class WebhookHandler():
     async def handle_webhook(self, request):
         payload = await request.json()
 
-        self.embeder.handle_payload(payload)
+        await self.embeder.handle_payload(payload)
 
         return web.Response(status=200)
 
