@@ -2,6 +2,7 @@ from aiohttp import web
 import os
 import discord
 from .embeder import Embeder
+import json
 
 class WebhookHandler():
     bot: discord.Bot = None
@@ -14,6 +15,8 @@ class WebhookHandler():
 
     async def handle_webhook(self, request):
         payload = await request.json()
+        # with open("matchdemo.json", "r", encoding="utf-8") as f:
+        #     payload = json.load(f)
 
         await self.embeder.handle_payload(payload)
 
